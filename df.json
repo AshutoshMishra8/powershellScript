@@ -1,0 +1,200 @@
+{
+    "$schema": "http://schema.management.azure.com/schemas/2014-04-01-preview/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "dataFactoryName": {
+            "type": "string"
+        },
+        "connectionString":{
+            "type": "string"
+        },
+        "dataLakeStoreName":{
+            "type": "string"
+        },
+        "dataLakeAnalyticsName":{
+            "type": "string"
+        },
+        "testDataFolder":{
+            "type":"string"
+        },
+        "resultDataFolder":{
+            "type":"string"
+        }
+        
+    },
+    "variables":{"apiVersion":"2015-10-01"},
+    
+    "resources": [
+        {
+            "apiVersion": "[variables('apiVersion')]",
+            "name": "[parameters('dataFactoryName')]",
+            "location": "[resourceGroup().location]",
+            "type": "Microsoft.DataFactory/dataFactories",
+            "properties": {},
+            "resources":[
+                {
+                  "dependsOn": [ "[concat('Microsoft.DataFactory/dataFactories/', parameters('dataFactoryName'))]" ],
+                  "type": "linkedservices",
+                  "name": "StorageLinkedService",
+                  "apiVersion": "[variables('apiVersion')]",
+                  "properties": {
+                    "type": "AzureStorage",
+                    "typeProperties": {
+                      "connectionString": "[parameters('connectionString')]"
+                    }
+                  }
+                },
+                {
+                    "dependsOn": [ "[concat('Microsoft.DataFactory/dataFactories/', parameters('dataFactoryName'))]" ],
+                    "type": "linkedservices",
+                    "name": "AzureDataLakeStoreLinkedService",
+                    "apiVersion": "[variables('apiVersion')]",
+                    "properties": {
+                        "type": "AzureDataLakeStore",
+                        "typeProperties": {
+                            "dataLakeStoreUri": "[concat('https://', parameters('dataLakeStoreName'),'.azuredatalakestore.net')]",
+                            "servicePrincipalId": "ac4c42bf-50e4-42c9-aec8-9ac479898c9d",
+                            "servicePrincipalKey": "zB79+2dZsDFMHs49Q+A5TDa2uGbzGTFf3L6+bNEohjE=",
+                            "tenant": "infy615372outlook.onmicrosoft.com"
+                        }
+                    }
+                        },
+
+                        {
+
+                    "dependsOn": [ "[concat('Microsoft.DataFactory/dataFactories/',parameters('dataFactoryName'))]",
+                                 "[concat('Microsoft.DataFactory/dataFactories/', parameters('dataFactoryName'), '/linkedservices/', 'AzureDataLakeStoreLinkedService')]"],
+                    "type": "linkedservices",
+                    "name": "AzureDataLakeAnalyticsLinkedService",
+                    "apiVersion": "[variables('apiVersion')]",
+                    "properties": {
+                        "type": "AzureDataLakeAnalytics",
+                        "typeProperties": {
+                            "accountName": "[parameters('dataLakeAnalyticsName')]",
+                            "servicePrincipalId": "ac4c42bf-50e4-42c9-aec8-9ac479898c9d",
+                            "servicePrincipalKey": "zB79+2dZsDFMHs49Q+A5TDa2uGbzGTFf3L6+bNEohjE=",
+                            "tenant": "infy615372outlook.onmicrosoft.com",
+                            "subscriptionId": "db619d37-d1ca-4ec3-9a5b-0bca11aa2ebd",
+                            "resourceGroupName": "[resourceGroup().name]"
+                        }
+                    }
+                },
+                    {
+                        "dependsOn": [
+                                        "[concat('Microsoft.DataFactory/dataFactories/', parameters('dataFactoryName'))]",
+                                        "[concat('Microsoft.DataFactory/dataFactories/', parameters('dataFactoryName'), '/linkedServices/', 'AzureDataLakeStoreLinkedService')]"
+                                    ],    
+                    "type": "datasets",
+                    "name": "inputdataset",
+                    "apiVersion": "[variables('apiVersion')]",
+                    "properties": {
+                        "type": "AzureDataLakeStore",
+                        "linkedServiceName": "AzureDataLakeStoreLinkedService",
+                        "typeProperties": {
+                            "folderPath": "[parameters('testDataFolder')]",
+                            "fileName": "testdata1.csv",
+                            "format": {
+                                "type": "TextFormat",
+                                "rowDelimiter": "\n",
+                                "columnDelimiter": ","
+                            }
+                        },
+                        "external": true,
+                        "availability": {
+                            "frequency": "Day",
+                            "interval": 1
+                        },
+                        "policy": {
+                              "externalData": {
+                                "retryInterval": "00:01:00",
+                                "retryTimeout": "00:10:00",
+                                "maximumRetry": 3
+                              }
+                        }
+
+                    }
+                },
+                        {
+                    "dependsOn": [
+                                        "[concat('Microsoft.DataFactory/dataFactories/', parameters('dataFactoryName'))]",
+                                        "[concat('Microsoft.DataFactory/dataFactories/', parameters('dataFactoryName'), '/linkedServices/', 'AzureDataLakeStoreLinkedService')]"
+                                    ],
+                    "type": "datasets",
+                    "name": "outputdataset",
+                    "apiVersion": "[variables('apiVersion')]",
+                    "properties": {
+                        "type": "AzureDataLakeStore",
+                        "linkedServiceName": "AzureDataLakeStoreLinkedService",
+                        "typeProperties": {
+                            "folderPath": "[parameters('resultDataFolder')]"
+                        },
+                        "availability": {
+                            "frequency": "Day",
+                            "interval": 1
+                        }
+                    }
+                },
+                        {
+                         "dependsOn": [
+                                            "[concat('Microsoft.DataFactory/dataFactories/', parameters('dataFactoryName'))]",
+                                            "[concat('Microsoft.DataFactory/dataFactories/', parameters('dataFactoryName'), '/linkedServices/', 'AzureDataLakeStoreLinkedService')]",
+                                            "[concat('Microsoft.DataFactory/dataFactories/', parameters('dataFactoryName'), '/linkedServices/', 'AzureDataLakeAnalyticsLinkedService')]",
+                                            "[concat('Microsoft.DataFactory/dataFactories/', parameters('dataFactoryName'), '/datasets/', 'inputdataset')]",
+                                            "[concat('Microsoft.DataFactory/dataFactories/', parameters('dataFactoryName'), '/datasets/', 'outputdataset')]"
+                                        ],
+                    "type": "datapipelines",
+                    "name": "ComputeEventsByRegionPipeline",
+                    "apiVersion": "[variables('apiVersion')]",
+                    "properties": {
+                        "description": "This is a pipeline to compute events for en-gb locale and date less than 2012/02/19.",
+                        "activities": 
+                        [
+                            {
+                                "type": "DataLakeAnalyticsU-SQL",
+                                "typeProperties": {
+                                    "scriptPath": "contains\\U-Sql.txt",
+                                    "scriptLinkedService": "StorageLinkedService",
+                                    "degreeOfParallelism": 3,
+                                    "priority": 100,
+                                    "parameters": {
+                                        "in": "[concat(parameters('testDataFolder'),'/testdata1.csv')]",
+                                        "out": "[concat(parameters('resultDataFolder'),'/result.csv')]"
+                                    }
+                                },
+                                "inputs": [
+                                    {
+                                        "name": "inputdataset"
+                                    }
+                                ],
+                                "outputs": 
+                                [
+                                    {
+                                        "name": "outputdataset"
+                                    }
+                                ],
+                                "policy": {
+                                    "timeout": "01:00:00",
+                                    "concurrency": 1,
+                                    "executionPriorityOrder": "NewestFirst",
+                                    "style": "StartOfInterval",
+                                    "retry": 3,
+                                    "longRetry": 0,
+                                    "longRetryInterval": "00:00:00"
+                                },
+                                "scheduler": {
+                                    "frequency": "Day",
+                                    "interval": 1
+                                },
+                                "name": "EventsByRegion",
+                                "linkedServiceName": "AzureDataLakeAnalyticsLinkedService"
+                            }
+                        ],
+                       "start": "2017-10-08T05:06:11Z",
+                        "end": "2099-12-30T18:30:00Z",
+                        "isPaused": false
+                    }
+                }
+            ]
+        }
+    ]
+}
